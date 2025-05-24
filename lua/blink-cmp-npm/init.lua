@@ -5,6 +5,9 @@ local ignore_version = require("blink-cmp-npm.utils.ignore_version")
 local is_cursor_in_dependencies_node = require("blink-cmp-npm.utils.is_cursor_in_dependencies_node")
 local semantic_sort = require("blink-cmp-npm.utils.semantic_sort")
 
+local node_modules = require("blink-cmp-npm.utils.node_modules")
+local workspaces_module = require("blink-cmp-npm.utils.workspaces")
+
 ---@module 'blink.cmp'
 ---@class blink-cmp-npm.Source: blink.cmp.Source
 ---@field opts blink-cmp-npm.Options
@@ -58,30 +61,19 @@ function source:get_completions(ctx, callback)
   end
 
   local kind = require("blink.cmp.types").CompletionItemKind.Module
-  if find_version then
-    if self.opts.only_latest_version then
-      vim.system(
-        {
-          "npm",
-          "info",
-          name,
-          "version",
-          "--no-update-notifier",
-        },
-        nil,
-        function(result)
-          if result.code ~= 0 then
-            return
-          end
-
-          local lines = vim.split(result.stdout, "\n")
-          local version = lines[1]
+  workspaces_module.load_workspaces(function(w)
+    local workspaces = workspaces_module.filter_workspaces(w, name)
+    if find_version then
+      if self.opts.only_latest_version then
+        node_modules.list_latest_versions(name, function(version)
           if not version then
             return
           end
 
           ---@type lsp.CompletionItem[]
           local items = {}
+
+          workspaces_module.add_workspace_version(workspaces, items, kind)
 
           ---@type lsp.CompletionItem
           local item_minor = {
@@ -113,30 +105,16 @@ function source:get_completions(ctx, callback)
             is_incomplete_backward = true,
             is_incomplete_forward = true,
           })
-        end
-      )
-    else
-      vim.system(
-        {
-          "npm",
-          "info",
-          name,
-          "versions",
-          "--json",
-          "--no-update-notifier",
-        },
-        nil,
-        function(result)
-          if result.code ~= 0 then
+        end)
+      else
+        node_modules.list_all_versions(name, function(versions)
+          if not versions[1] then
             return
           end
-
           ---@type lsp.CompletionItem[]
           local items = {}
 
           -- populate items
-          ---@type string[]
-          local versions = vim.json.decode(result.stdout)
           for _, version in ipairs(versions) do
             local version_ignored = ignore_version(version, current_version, self.opts)
             if not version_ignored then
@@ -162,55 +140,53 @@ function source:get_completions(ctx, callback)
             })
           end
 
+          workspaces_module.add_workspace_version(workspaces, items, kind)
+
           callback({
             items = items,
             is_incomplete_backward = true,
             is_incomplete_forward = true,
           })
-        end
-      )
-    end
-  else
-    vim.system(
-      {
-        "npm",
-        "search",
-        "--json",
-        "--no-update-notifier",
-        name,
-      },
-      nil,
-      function(result)
-        if result.code ~= 0 then
-          return
+        end)
+      end
+    else
+      ---@type lsp.CompletionItem[]
+      local items = {}
+      local item_key = 1
+      node_modules.load_npm_packages(name, function(npm_items)
+        for _, workspace in ipairs(workspaces) do
+          table.insert(items, {
+            kind = kind,
+            label = workspace,
+            sortText = item_key,
+            documentation = {
+              kind = "markdown",
+              value = "Local workspace",
+            },
+          })
+          item_key = item_key + 1
         end
 
-        ---@type lsp.CompletionItem[]
-        local items = {}
-
-        -- populate items
-        ---@type NpmPackage[]
-        local npm_items = vim.json.decode(result.stdout)
-        for npm_item_key, npm_item in ipairs(npm_items) do
+        for _, npm_item in ipairs(npm_items) do
           table.insert(items, {
             kind = kind,
             label = npm_item.name,
-            sortText = npm_item_key,
+            sortText = item_key,
             documentation = {
               kind = "markdown",
               value = generate_doc(npm_item),
             },
           })
+          item_key = item_key + 1
         end
-
         callback({
           items = items,
           is_incomplete_backward = true,
           is_incomplete_forward = true,
         })
-      end
-    )
-  end
+      end)
+    end
+  end)
 end
 
 ---@param ctx blink.cmp.Context
