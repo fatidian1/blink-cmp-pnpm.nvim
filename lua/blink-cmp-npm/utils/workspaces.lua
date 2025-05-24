@@ -1,8 +1,15 @@
 local M = {}
 
+local cached_workspaces = nil
+
 ---@param name string
 ---@param callback fun(workspaces: string[])
 local function load_workspaces(callback)
+  if cached_workspaces then
+    callback(cached_workspaces)
+    return
+  end
+
   vim.system({ "pnpm", "ls", "--depth=-1", "--recursive", "--json" }, nil, function(result)
     local workspaces = {}
 
@@ -16,6 +23,8 @@ local function load_workspaces(callback)
     for _, workspace in ipairs(decoded) do
       table.insert(workspaces, workspace.name)
     end
+
+    cached_workspaces = workspaces
 
     callback(workspaces)
   end)
