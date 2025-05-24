@@ -66,14 +66,21 @@ function source:get_completions(ctx, callback)
     if find_version then
       if self.opts.only_latest_version then
         node_modules.list_latest_versions(name, function(version)
-          if not version then
-            return
-          end
-
           ---@type lsp.CompletionItem[]
           local items = {}
 
           workspaces_module.add_workspace_version(workspaces, items, kind)
+
+          if not version then
+            if items[1] then
+              callback({
+                items = items,
+                is_incomplete_backward = true,
+                is_incomplete_forward = true,
+              })
+            end
+            return
+          end
 
           ---@type lsp.CompletionItem
           local item_minor = {
@@ -108,9 +115,6 @@ function source:get_completions(ctx, callback)
         end)
       else
         node_modules.list_all_versions(name, function(versions)
-          if not versions[1] then
-            return
-          end
           ---@type lsp.CompletionItem[]
           local items = {}
 
