@@ -1,19 +1,19 @@
-local compute_meta = require("blink-cmp-npm.utils.compute_meta")
-local extract_line = require("blink-cmp-npm.utils.extract_line")
-local generate_doc = require("blink-cmp-npm.utils.generate_doc")
-local ignore_version = require("blink-cmp-npm.utils.ignore_version")
-local is_cursor_in_dependencies_node = require("blink-cmp-npm.utils.is_cursor_in_dependencies_node")
-local semantic_sort = require("blink-cmp-npm.utils.semantic_sort")
+local compute_meta = require("blink-cmp-pnpm.utils.compute_meta")
+local extract_line = require("blink-cmp-pnpm.utils.extract_line")
+local generate_doc = require("blink-cmp-pnpm.utils.generate_doc")
+local ignore_version = require("blink-cmp-pnpm.utils.ignore_version")
+local is_cursor_in_dependencies_node = require("blink-cmp-pnpm.utils.is_cursor_in_dependencies_node")
+local semantic_sort = require("blink-cmp-pnpm.utils.semantic_sort")
 
-local node_modules = require("blink-cmp-npm.utils.node_modules")
-local workspaces_module = require("blink-cmp-npm.utils.workspaces")
+local node_modules = require("blink-cmp-pnpm.utils.node_modules")
+local workspaces_module = require("blink-cmp-pnpm.utils.workspaces")
 
 ---@module 'blink.cmp'
----@class blink-cmp-npm.Source: blink.cmp.Source
----@field opts blink-cmp-npm.Options
+---@class blink-cmp-pnpm.Source: blink.cmp.Source
+---@field opts blink-cmp-pnpm.Options
 local source = {}
 
----@class blink-cmp-npm.Options: blink.cmp.PathOpts
+---@class blink-cmp-pnpm.Options: blink.cmp.PathOpts
 ---@field ignore? table
 ---@field only_semantic_versions? boolean
 ---@field only_latest_version? boolean
@@ -23,7 +23,7 @@ local default_opts = {
   only_latest_version = false,
 }
 
----@param opts blink-cmp-npm.Options
+---@param opts blink-cmp-pnpm.Options
 function source.new(opts)
   local self = setmetatable({}, { __index = source })
   self.opts = vim.tbl_deep_extend("force", default_opts, opts)

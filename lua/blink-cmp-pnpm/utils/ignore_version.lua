@@ -1,5 +1,5 @@
 ---@param version string
----@param opts blink-cmp-npm.Options
+---@param opts blink-cmp-pnpm.Options
 ---@return boolean
 local function ignore_version(version, current_version, opts)
   if opts.only_semantic_versions and not string.match(version, "^%d+%.%d+%.%d+$") then

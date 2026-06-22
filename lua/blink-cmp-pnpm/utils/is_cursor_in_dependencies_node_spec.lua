@@ -1,4 +1,4 @@
-local is_cursor_in_dependencies_node = require("blink-cmp-npm.utils.is_cursor_in_dependencies_node")
+local is_cursor_in_dependencies_node = require("blink-cmp-pnpm.utils.is_cursor_in_dependencies_node")
 local parsers = require("nvim-treesitter.parsers")
 local ts_configs = require("nvim-treesitter.configs")
 

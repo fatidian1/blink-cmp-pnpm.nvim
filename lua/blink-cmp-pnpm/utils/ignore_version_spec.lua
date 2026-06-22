@@ -1,4 +1,4 @@
-local ignore_version = require("blink-cmp-npm.utils.ignore_version")
+local ignore_version = require("blink-cmp-pnpm.utils.ignore_version")
 
 describe("ignore_version", function()
   it("should ignore non-semantic versions", function()

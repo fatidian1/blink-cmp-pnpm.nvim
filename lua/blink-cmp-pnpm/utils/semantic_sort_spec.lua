@@ -1,4 +1,4 @@
-local semantic_sort = require("blink-cmp-npm.utils.semantic_sort")
+local semantic_sort = require("blink-cmp-pnpm.utils.semantic_sort")
 
 describe("semantic_sort", function()
   it("should compare major versions", function()

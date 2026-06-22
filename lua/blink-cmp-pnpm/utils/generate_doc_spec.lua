@@ -1,4 +1,4 @@
-local generate_doc = require("blink-cmp-npm.utils.generate_doc")
+local generate_doc = require("blink-cmp-pnpm.utils.generate_doc")
 
 describe("generate_doc", function()
   it("should generate package doc", function()

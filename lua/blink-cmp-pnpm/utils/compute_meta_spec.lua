@@ -1,4 +1,4 @@
-local compute_meta = require("blink-cmp-npm.utils.compute_meta")
+local compute_meta = require("blink-cmp-pnpm.utils.compute_meta")
 
 describe("compute_meta", function()
   it("should compute cursor metadata", function()

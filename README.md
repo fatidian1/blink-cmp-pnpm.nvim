@@ -1,10 +1,10 @@
-# blink-cmp-npm
+# blink-cmp-pnpm
 
 A [`blink.cmp`](https://github.com/Saghen/blink.cmp) source that provides
-completions for NPM packages and versions in `package.json` files.
+completions for `NPM` and `PNPM` packages and versions in `package.json` and `pnpm-workspace.yaml` files.
 
-This plugin is an adaptation of [`cmp-npm`](https://github.com/David-Kunz/cmp-npm),
-modified to work natively with `blink.cmp`.
+This plugin is an adaptation of [`blink-cmp-npm`](https://github.com/alexandre-abrioux/blink-cmp-npm.nvim),
+modified to work with `pnpm`.
 
 [![Demo Gif](https://raw.githubusercontent.com/alexandre-abrioux/blink-cmp-npm.nvim/refs/heads/main/demo.gif)](https://asciinema.org/a/718781?t=2)
 
@@ -13,6 +13,7 @@ modified to work natively with `blink.cmp`.
 - [`neovim`](https://github.com/neovim/neovim) > `0.7.0`
 - [`blink.cmp`](https://github.com/Saghen/blink.cmp)
 - [`npm`](https://github.com/npm/cli)
+- `pnpm` (optional - plugin will work also with `npm`)
 
 ## Installation
 
@@ -23,24 +24,24 @@ Add the plugin to your packer manager and make sure it is loaded before `blink.c
 ```lua
 {
   "saghen/blink.cmp",
-  dependencies = { "alexandre-abrioux/blink-cmp-npm.nvim" },
+  dependencies = { "fatidian1/blink-cmp-pnpm.nvim" },
   opts = {
     sources = {
       default = {
-        -- enable "npm" in your sources list
-        "npm"
+        -- enable "pnpm" in your sources list
+        "pnpm"
       },
       providers = {
         -- configure the provider
-        npm = {
-          name = "npm",
-          module = "blink-cmp-npm",
+        pnpm = {
+          name = "pnpm",
+          module = "blink-cmp-pnpm",
           async = true,
-          -- optional - make blink-cmp-npm completions top priority (see `:h blink.cmp`)
+          -- optional - make blink-cmp-pnpm completions top priority (see `:h blink.cmp`)
           score_offset = 100,
-          -- optional - blink-cmp-npm config
-          ---@module "blink-cmp-npm"
-          ---@type blink-cmp-npm.Options
+          -- optional - blink-cmp-pnpm config
+          ---@module "blink-cmp-pnpm"
+          ---@type blink-cmp-pnpm.Options
           opts = {
             ignore = {},
             only_semantic_versions = true,
@@ -64,7 +65,7 @@ Add the plugin to your packer manager and make sure it is loaded before `blink.c
 ## Usage
 
 Once installed and enabled,
-completions will automatically be provided when working with `package.json` files.
+completions will automatically be provided when working with `package.json` and `pnpm-workspace.yaml` files.
 
 ## Contributing
 
@@ -74,5 +75,7 @@ Contributions are welcome! Feel free to submit a Pull Request.
 
 Special thanks to:
 
+- [@jakub-jarzabek](https://github.com/jakub-jarzabek/blink-cmp-npm.nvim) for adapting the plugin to work with pnpm workspaces [blink-cmp-npm](https://github.com/jakub-jarzabek/blink-cmp-npm.nvim)
+- [@alexandre-abrioux](https://github.com/alexandre-abrioux/blink-cmp-npm.nvim) for creating [blink-cmp-npm](https://github.com/alexandre-abrioux/blink-cmp-npm.nvim)
 - [@David-Kunz](https://github.com/David-Kunz/cmp-npm) for his work on [`cmp-npm`](https://github.com/David-Kunz/cmp-npm) 🙏
 - [@Saghen](https://github.com/Saghen/blink.cmp) for creating and maintaining [`blink.cmp`](https://github.com/Saghen/blink.cmp) 🚀
