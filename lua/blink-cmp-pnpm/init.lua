@@ -1,11 +1,14 @@
+local catalogs_module = require("blink-cmp-pnpm.utils.catalogs")
 local compute_meta = require("blink-cmp-pnpm.utils.compute_meta")
+local compute_meta_yaml = require("blink-cmp-pnpm.utils.compute_meta_yaml")
 local extract_line = require("blink-cmp-pnpm.utils.extract_line")
 local generate_doc = require("blink-cmp-pnpm.utils.generate_doc")
 local ignore_version = require("blink-cmp-pnpm.utils.ignore_version")
+local is_cursor_in_catalog_node = require("blink-cmp-pnpm.utils.is_cursor_in_catalog_node")
 local is_cursor_in_dependencies_node = require("blink-cmp-pnpm.utils.is_cursor_in_dependencies_node")
+local package_manager = require("blink-cmp-pnpm.utils.package_manager")
+local registry = require("blink-cmp-pnpm.utils.registry")
 local semantic_sort = require("blink-cmp-pnpm.utils.semantic_sort")
-
-local node_modules = require("blink-cmp-pnpm.utils.node_modules")
 local workspaces_module = require("blink-cmp-pnpm.utils.workspaces")
 
 ---@module 'blink.cmp'
@@ -33,13 +36,122 @@ end
 function source:enabled()
   local filename = vim.fn.expand("%:t")
   return filename == "package.json"
+    or filename == "pnpm-workspace.yaml"
+    or filename == "pnpm-workspace.yml"
 end
 
 function source:get_trigger_characters()
   return { '"' }
 end
 
+---@param ctx blink.cmp.Context
+---@param callback fun(response: blink.cmp.CompletionResponse)
+---@param root? string
+---@param manager PackageManager
+function source:get_workspace_completions(ctx, callback, root, manager)
+  if not is_cursor_in_catalog_node() then
+    return function() end
+  end
+
+  local line = extract_line(ctx)
+  if #line > 200 then
+    line = line:sub(1, 200)
+  end
+
+  local meta = compute_meta_yaml(line, ctx)
+  local name, _pos_start_name, _pos_end_name, _pos_second_quote, _pos_third_quote, pos_fourth_quote, current_version, current_version_matcher, find_version =
+    unpack(meta)
+
+  if not name then
+    return function() end
+  end
+
+  local col = ctx.cursor[2]
+  if pos_fourth_quote ~= nil and col >= pos_fourth_quote then
+    return function() end
+  end
+
+  local kind = require("blink.cmp.types").CompletionItemKind.Module
+
+  if find_version then
+    local function build_items(versions)
+      ---@type lsp.CompletionItem[]
+      local items = {}
+
+      for _, version in ipairs(versions) do
+        local version_ignored = ignore_version(version, current_version, self.opts)
+        if not version_ignored then
+          if not current_version or current_version_matcher == "^" then
+            table.insert(items, { label = "^" .. version, kind = kind })
+          end
+          if not current_version or current_version_matcher == "~" then
+            table.insert(items, { label = "~" .. version, kind = kind })
+          end
+          if not current_version or current_version_matcher == "" then
+            table.insert(items, { label = version, kind = kind })
+          end
+        end
+      end
+
+      table.sort(items, semantic_sort)
+
+      for index, item in ipairs(items) do
+        items[index] = vim.tbl_deep_extend("force", item, {
+          sortText = string.format("%06d", index),
+        })
+      end
+
+      callback({
+        items = items,
+        is_incomplete_backward = true,
+        is_incomplete_forward = true,
+      })
+    end
+
+    if self.opts.only_latest_version then
+      registry.list_latest_version(name, function(version)
+        if version then
+          build_items({ version })
+        else
+          callback({ items = {}, is_incomplete_backward = true, is_incomplete_forward = true })
+        end
+      end, manager)
+    else
+      registry.list_all_versions(name, build_items, manager)
+    end
+  else
+    ---@type lsp.CompletionItem[]
+    local items = {}
+    registry.load_packages(name, function(packages)
+      for _, package in ipairs(packages) do
+        table.insert(items, {
+          kind = kind,
+          label = package.name,
+          sortText = string.format("%06d", #items + 1),
+          documentation = {
+            kind = "markdown",
+            value = generate_doc(package),
+          },
+        })
+      end
+      callback({
+        items = items,
+        is_incomplete_backward = true,
+        is_incomplete_forward = true,
+      })
+    end, manager)
+  end
+end
+
 function source:get_completions(ctx, callback)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local root, manager = package_manager.get(bufnr)
+  local filename = vim.fn.expand("%:t")
+
+  if filename == "pnpm-workspace.yaml" or filename == "pnpm-workspace.yml" then
+    return self:get_workspace_completions(ctx, callback, root, manager)
+  end
+
   local is_in_dependencies_node = is_cursor_in_dependencies_node()
 
   if not is_in_dependencies_node then
@@ -61,15 +173,20 @@ function source:get_completions(ctx, callback)
   end
 
   local kind = require("blink.cmp.types").CompletionItemKind.Module
-  workspaces_module.load_workspaces(function(w)
-    local workspaces = workspaces_module.filter_workspaces(w, name)
+
+  workspaces_module.load_workspaces(root, manager, function(workspaces)
+    local filtered_workspaces = workspaces_module.filter_workspaces(workspaces, name)
+
+    local catalogs = manager == "pnpm" and catalogs_module.load(root) or { default = {}, named = {} }
+
     if find_version then
       if self.opts.only_latest_version then
-        node_modules.list_latest_versions(name, function(version)
+        registry.list_latest_version(name, function(version)
           ---@type lsp.CompletionItem[]
           local items = {}
 
-          workspaces_module.add_workspace_version(workspaces, items, kind)
+          workspaces_module.add_workspace_versions(filtered_workspaces, items, kind)
+          catalogs_module.add_catalog_tags(catalogs, name, items, kind)
 
           if not version then
             if items[1] then
@@ -112,9 +229,9 @@ function source:get_completions(ctx, callback)
             is_incomplete_backward = true,
             is_incomplete_forward = true,
           })
-        end)
+        end, manager)
       else
-        node_modules.list_all_versions(name, function(versions)
+        registry.list_all_versions(name, function(versions)
           ---@type lsp.CompletionItem[]
           local items = {}
 
@@ -140,29 +257,30 @@ function source:get_completions(ctx, callback)
           -- add sorting property for blink.cmp
           for index, item in ipairs(items) do
             items[index] = vim.tbl_deep_extend("force", item, {
-              sortText = index,
+              sortText = string.format("%06d", index),
             })
           end
 
-          workspaces_module.add_workspace_version(workspaces, items, kind)
+          workspaces_module.add_workspace_versions(filtered_workspaces, items, kind)
+          catalogs_module.add_catalog_tags(catalogs, name, items, kind)
 
           callback({
             items = items,
             is_incomplete_backward = true,
             is_incomplete_forward = true,
           })
-        end)
+        end, manager)
       end
     else
       ---@type lsp.CompletionItem[]
       local items = {}
       local item_key = 1
-      node_modules.load_npm_packages(name, function(npm_items)
-        for _, workspace in ipairs(workspaces) do
+      registry.load_packages(name, function(packages)
+        for _, workspace in ipairs(filtered_workspaces) do
           table.insert(items, {
             kind = kind,
             label = workspace,
-            sortText = item_key,
+            sortText = string.format("%06d", item_key),
             documentation = {
               kind = "markdown",
               value = "Local workspace",
@@ -171,14 +289,14 @@ function source:get_completions(ctx, callback)
           item_key = item_key + 1
         end
 
-        for _, npm_item in ipairs(npm_items) do
+        for _, package in ipairs(packages) do
           table.insert(items, {
             kind = kind,
-            label = npm_item.name,
-            sortText = item_key,
+            label = package.name,
+            sortText = string.format("%06d", item_key),
             documentation = {
               kind = "markdown",
-              value = generate_doc(npm_item),
+              value = generate_doc(package),
             },
           })
           item_key = item_key + 1
@@ -188,7 +306,7 @@ function source:get_completions(ctx, callback)
           is_incomplete_backward = true,
           is_incomplete_forward = true,
         })
-      end)
+      end, manager)
     end
   end)
 end
@@ -210,16 +328,34 @@ local function replace_text(ctx, insert_text, pos_first_quote, pos_second_quote,
 end
 
 function source:execute(ctx, item, callback)
+  local filename = vim.fn.expand("%:t")
   local line = extract_line(ctx)
-  local meta = compute_meta(line, ctx)
-  local _name, pos_start_name, _pos_end_name, pos_second_quote, pos_third_quote, pos_fourth_quote, _current_version, _current_version_matcher, find_version =
-    unpack(meta)
   local insert_text = item.label
   if item.insertText then
     insert_text = item.insertText
   end
   local line_last_char = line:sub(#line)
   local pos_end_line = line_last_char == "," and (#line - 1) or #line
+
+  if filename == "pnpm-workspace.yaml" or filename == "pnpm-workspace.yml" then
+    local meta = compute_meta_yaml(line, ctx)
+    local _name, pos_start_name, _pos_end_name, pos_second_quote, pos_third_quote, pos_fourth_quote, _current_version, _current_version_matcher, find_version =
+      unpack(meta)
+
+    if find_version then
+      replace_text(ctx, insert_text, pos_third_quote, pos_fourth_quote, pos_end_line)
+    else
+      replace_text(ctx, insert_text, pos_start_name, pos_second_quote, pos_end_line)
+    end
+
+    callback()
+    return
+  end
+
+  local meta = compute_meta(line, ctx)
+  local _name, pos_start_name, _pos_end_name, pos_second_quote, pos_third_quote, pos_fourth_quote, _current_version, _current_version_matcher, find_version =
+    unpack(meta)
+
   if find_version then
     replace_text(ctx, insert_text, pos_third_quote, pos_fourth_quote, pos_end_line)
   else

@@ -1,3 +1,5 @@
+---@alias PackageManager "npm" | "pnpm"
+
 ---@class NpmPackage
 ---@field name string
 ---@field description string
@@ -10,3 +12,7 @@
 ---@class NpmPackageLink
 ---@field npm string
 ---@field homepage string
+
+---@class blink-cmp-pnpm.Catalogs
+---@field default table<string, string>
+---@field named table<string, table<string, string>>
