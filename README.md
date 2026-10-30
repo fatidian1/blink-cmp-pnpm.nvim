@@ -1,3 +1,4 @@
+⚠️ **This fork is discontinued in favor of:** [`mpnp`](https://github.com/fatidian1/mpnp) - `npm` to `pnpm` commands translator.
 # blink-cmp-pnpm
 
 A [`blink.cmp`](https://github.com/Saghen/blink.cmp) source that provides
